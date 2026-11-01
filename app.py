@@ -6,7 +6,7 @@ st.set_page_config(page_title="DEVIDA | Actividad Cacao",page_icon="🌿",layout
 st.markdown("""<style>.block-container{padding-top:1.4rem}h1,h2,h3{color:#145637}[data-testid='stMetric']{background:#eff7f1;border:1px solid #d7e8db;padding:16px;border-radius:12px}</style>""",unsafe_allow_html=True)
 st.title("🌿 ACTIVIDAD CACAO | DEVIDA")
 st.caption("Oficina Zonal Tingo María · Fuente: dash(5).xlsx · Archivo actualizado hasta octubre de 2026")
-st.warning("VERSIÓN DE VALIDACIÓN. Los valores son agregados de Hoja 1 y todavía no están conciliados con las medidas DAX del informe oficial. No confundir asistencias con personas únicas. La hoja principal no contiene fechas mensuales por productor.")
+st.warning("VERSIÓN DE VALIDACIÓN. La métrica de hectáreas usa la suma de TOTAL (columna V), conforme a la consulta del gráfico principal del PBIX; las demás medidas todavía requieren conciliación con el informe oficial. No confundir asistencias con personas únicas. La hoja principal no contiene fechas mensuales por productor.")
 df=pd.read_csv('datos_publicos_personal.csv').fillna(0)
 st.sidebar.header('FILTROS')
 # Cascada: cada selección reduce las opciones disponibles en los siguientes filtros.
@@ -40,8 +40,8 @@ def note():st.caption('Cifras exploratorias sumadas por ámbito. Validar unidade
 tabs=st.tabs(['RESUMEN','CAPACITACIÓN','ATP','ABONOS ORG.','FOLIARES','POSCOSECHA','% FRUTOS'])
 with tabs[0]:
  st.subheader('Resumen de la actividad')
- cards([('Registros (no familias únicas)','registros',',.0f'),('Familias (suma del campo)','familias_base_suma',',.0f'),('Hectáreas asistidas (suma)','hectareas_asistidas',',.2f'),('Visitas técnicas (suma)','visitas_tecnicas',',.0f')])
- chart('Hectáreas asistidas por ámbito',['hectareas_asistidas'])
+ cards([('Registros (no familias únicas)','registros',',.0f'),('Familias (suma del campo)','familias_base_suma',',.0f'),('Hectáreas asistidas (TOTAL - Power BI)','hectareas_asistidas',',.2f'),('Visitas técnicas (suma)','visitas_tecnicas',',.0f')])
+ chart('Hectáreas asistidas por ámbito (TOTAL)',['hectareas_asistidas'])
  note()
 with tabs[1]:
  st.subheader('Capacitación')
