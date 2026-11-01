@@ -7,17 +7,25 @@ st.markdown("""<style>.block-container{padding-top:1.4rem}h1,h2,h3{color:#145637
 st.title("🌿 ACTIVIDAD CACAO | DEVIDA")
 st.caption("Oficina Zonal Tingo María · Fuente: dash(5).xlsx · Archivo actualizado hasta octubre de 2026")
 st.warning("VERSIÓN DE VALIDACIÓN. Los valores son agregados de Hoja 1 y todavía no están conciliados con las medidas DAX del informe oficial. No confundir asistencias con personas únicas. La hoja principal no contiene fechas mensuales por productor.")
-df=pd.read_csv('datos_publicos_comunidad.csv').fillna(0)
+df=pd.read_csv('datos_publicos_personal.csv').fillna(0)
 st.sidebar.header('FILTROS')
-ambitos=sorted(df['ambito'].dropna().unique())
-ambito=st.sidebar.selectbox('Ámbito', ['Todos']+ambitos, index=0)
-base=df if ambito=='Todos' else df[df.ambito==ambito]
-comunidades=sorted(base['comunidad'].dropna().unique())
-comunidad=st.sidebar.selectbox('Comunidad', ['Todas']+comunidades, index=0)
-d=base if comunidad=='Todas' else base[base.comunidad==comunidad]
-st.sidebar.markdown('**Corte del archivo:** octubre de 2026')
-st.sidebar.caption('Se agruparon comunidades con menos de 10 registros. No se publican datos individuales ni nombres del personal.')
-st.sidebar.info('Los filtros por supervisor, extensionista, técnico y mes requieren una base pública autorizada y la validación de medidas temporales.')
+# Cascada: cada selección reduce las opciones disponibles en los siguientes filtros.
+d=df.copy()
+for campo,etiqueta,default in [
+    ('ambito','Ámbito','Todos'),
+    ('comunidad','Comunidad','Todas'),
+    ('supervisor','Supervisor','Todos'),
+    ('extensionista','Extensionista','Todos'),
+    ('tecnico','Técnico','Todos'),
+]:
+    opciones=sorted(d[campo].dropna().astype(str).unique().tolist())
+    seleccion=st.sidebar.selectbox(etiqueta,[default]+opciones,key='filtro_'+campo)
+    if seleccion!=default:
+        d=d[d[campo]==seleccion]
+st.sidebar.markdown('**Corte de los datos:** octubre de 2026')
+st.sidebar.caption('Las comunidades con menos de 10 registros por grupo de personal se presentan agrupadas.')
+st.sidebar.warning('Los filtros muestran nombre y primer apellido del personal. Verificar autorización institucional antes de difundir el enlace.')
+st.sidebar.info('El filtro por mes sigue pendiente: la Hoja 1 no contiene una fecha mensual verificable por productor.')
 def total(k):return float(d[k].sum())
 def cards(pairs):
  cols=st.columns(len(pairs))
@@ -64,4 +72,4 @@ with tabs[6]:
   st.metric('Porcentaje de frutos enfermos (cálculo agregado)',f"{total('frutos_enfermos')/total('frutos_total')*100:.2f}%")
  chart('Conteo de frutos por ámbito',['frutos_sanos','frutos_enfermos']);note()
 st.divider()
-st.caption('Publicación segura: este paquete NO incluye el Excel original ni datos individuales. La publicación de agregados institucionales requiere autorización.')
+st.caption('Este paquete no incluye nombres ni DNI de productores; sí incluye nombre y primer apellido del personal para los filtros. Requiere autorización institucional antes de su difusión.')
