@@ -7,18 +7,23 @@ st.markdown("""<style>.block-container{padding-top:1.4rem}h1,h2,h3{color:#145637
 st.title("🌿 ACTIVIDAD CACAO | DEVIDA")
 st.caption("Oficina Zonal Tingo María · Fuente: dash(5).xlsx · Archivo actualizado hasta octubre de 2026")
 st.warning("VERSIÓN DE VALIDACIÓN. Los valores son agregados de Hoja 1 y todavía no están conciliados con las medidas DAX del informe oficial. No confundir asistencias con personas únicas. La hoja principal no contiene fechas mensuales por productor.")
-df=pd.read_csv('datos_publicos_ambito.csv').fillna(0)
+df=pd.read_csv('datos_publicos_comunidad.csv').fillna(0)
+st.sidebar.header('FILTROS')
 ambitos=sorted(df['ambito'].dropna().unique())
-seleccion=st.sidebar.multiselect('Filtrar ámbito',ambitos,default=ambitos)
+ambito=st.sidebar.selectbox('Ámbito', ['Todos']+ambitos, index=0)
+base=df if ambito=='Todos' else df[df.ambito==ambito]
+comunidades=sorted(base['comunidad'].dropna().unique())
+comunidad=st.sidebar.selectbox('Comunidad', ['Todas']+comunidades, index=0)
+d=base if comunidad=='Todas' else base[base.comunidad==comunidad]
 st.sidebar.markdown('**Corte del archivo:** octubre de 2026')
-st.sidebar.info('El filtro por mes no se habilita hasta validar las tablas de avance mensual. Los filtros por comunidad y personal se incorporarán únicamente con autorización de publicación de información identificable.')
-d=df[df.ambito.isin(seleccion)]
+st.sidebar.caption('Se agruparon comunidades con menos de 10 registros. No se publican datos individuales ni nombres del personal.')
+st.sidebar.info('Los filtros por supervisor, extensionista, técnico y mes requieren una base pública autorizada y la validación de medidas temporales.')
 def total(k):return float(d[k].sum())
 def cards(pairs):
  cols=st.columns(len(pairs))
  for c,(title,k,fmt) in zip(cols,pairs):c.metric(title,format(total(k),fmt))
 def chart(title,keys,labels=None):
- frame=d[['ambito']+keys].melt('ambito',var_name='Indicador',value_name='Valor')
+ frame=d.groupby('ambito',as_index=False)[keys].sum()[['ambito']+keys].melt('ambito',var_name='Indicador',value_name='Valor')
  if labels:frame['Indicador']=frame['Indicador'].replace(labels)
  fig=px.bar(frame,x='ambito',y='Valor',color='Indicador',barmode='group',title=title)
  fig.update_layout(xaxis_title='Ámbito',yaxis_title='',legend_title='',height=440)
@@ -27,7 +32,7 @@ def note():st.caption('Cifras exploratorias sumadas por ámbito. Validar unidade
 tabs=st.tabs(['RESUMEN','CAPACITACIÓN','ATP','ABONOS ORG.','FOLIARES','POSCOSECHA','% FRUTOS'])
 with tabs[0]:
  st.subheader('Resumen de la actividad')
- cards([('Registros de base','registros',',.0f'),('Familias (suma del campo)','familias_base_suma',',.0f'),('Hectáreas asistidas (suma)','hectareas_asistidas',',.2f'),('Visitas técnicas (suma)','visitas_tecnicas',',.0f')])
+ cards([('Registros (no familias únicas)','registros',',.0f'),('Familias (suma del campo)','familias_base_suma',',.0f'),('Hectáreas asistidas (suma)','hectareas_asistidas',',.2f'),('Visitas técnicas (suma)','visitas_tecnicas',',.0f')])
  chart('Hectáreas asistidas por ámbito',['hectareas_asistidas'])
  note()
 with tabs[1]:
@@ -46,7 +51,7 @@ with tabs[3]:
 with tabs[4]:
  st.subheader('Aplicaciones foliares')
  keys=['humato_l','sulfopotasico_l','cobre_quelatado_l','fosfito_potasio_l','foliar_cbz_l','foliar_pk_l','foliar_completo_l']
- st.dataframe(d[['ambito']+keys],hide_index=True,use_container_width=True)
+ st.dataframe(d.groupby('ambito',as_index=False)[keys].sum()[['ambito']+keys],hide_index=True,use_container_width=True)
  chart('Aplicaciones registradas (litros)',['humato_l','sulfopotasico_l','cobre_quelatado_l']);note()
 with tabs[5]:
  st.subheader('Poscosecha')
