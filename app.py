@@ -1,75 +1,217 @@
-
 import streamlit as st
 import pandas as pd
 import plotly.express as px
-st.set_page_config(page_title="DEVIDA | Actividad Cacao",page_icon="🌿",layout="wide")
-st.markdown("""<style>.block-container{padding-top:1.4rem}h1,h2,h3{color:#145637}[data-testid='stMetric']{background:#eff7f1;border:1px solid #d7e8db;padding:16px;border-radius:12px}</style>""",unsafe_allow_html=True)
-st.title("🌿 ACTIVIDAD CACAO | DEVIDA")
-st.caption("Oficina Zonal Tingo María · Fuente: dash(5).xlsx · Archivo actualizado hasta octubre de 2026")
-st.warning("VERSIÓN DE VALIDACIÓN. La métrica de hectáreas usa la suma de TOTAL (columna V), conforme a la consulta del gráfico principal del PBIX; las demás medidas todavía requieren conciliación con el informe oficial. No confundir asistencias con personas únicas. La hoja principal no contiene fechas mensuales por productor.")
-df=pd.read_csv('datos_publicos_personal.csv').fillna(0)
+import plotly.graph_objects as go
+from html import escape
+st.set_page_config(page_title='DEVIDA | Actividad Cacao',page_icon='🌿',layout='wide')
+st.markdown('''<style>
+.block-container{padding-top:.65rem;max-width:1550px;padding-bottom:1.8rem}
+.stApp{background:linear-gradient(150deg,#f1f9ff 0%,#ffffff 38%,#f1fff5 100%)}
+[data-testid="stSidebar"]{background:linear-gradient(180deg,#e7f5ff,#f2fff6)!important;border-right:2px solid #c2e5ed}
+[data-testid="stSidebar"] h2{background:linear-gradient(110deg,#009d4c,#08c76a);color:white!important;padding:14px 18px;border-radius:14px}
+[data-testid="stMetric"]{position:relative;overflow:hidden;background:linear-gradient(130deg,#0964a5,#078bc5);border:1px solid #ffffff8c;padding:15px 17px;border-radius:18px;box-shadow:0 5px 13px #0b355026;min-height:102px}
+[data-testid="stMetric"]:before{content:'✦';position:absolute;right:10px;top:3px;font-size:48px;color:#ffffff22}
+[data-testid="stMetricLabel"]{color:white!important;font-weight:800!important;font-size:14px!important}
+[data-testid="stMetricValue"]{color:white!important;font-size:32px!important;font-weight:800!important}
+[data-testid="stMetric"] *{color:white!important}
+.st-key-resumen_compacto [data-testid="stMetric"]{min-height:96px!important;padding:12px 18px!important}
+.st-key-resumen_compacto [data-testid="stMetricValue"]{font-size:30px!important}
+.st-key-resumen_compacto [data-testid="stHorizontalBlock"]:nth-of-type(2) [data-testid="stMetric"]{background:linear-gradient(125deg,#078f56,#18c26b)}
+.devida-gauge-card{position:relative;height:208px;border:1.5px solid var(--gauge-color);border-radius:20px;background:linear-gradient(160deg,#ffffff 15%,var(--gauge-pale) 100%);padding:11px 12px 7px;box-shadow:0 6px 15px #19395d1b;display:flex;flex-direction:column;align-items:center;justify-content:space-between;margin-bottom:12px;box-sizing:border-box;overflow:hidden}
+.devida-gauge-title{font:800 14px/1.2 Arial,sans-serif;text-align:center;color:#ffffff;min-height:32px;width:96%;background:var(--gauge-color);border-radius:18px;padding:8px 5px;display:flex;align-items:center;justify-content:center;box-sizing:border-box;text-shadow:0 1px 1px #00000026}
+.devida-gauge-icon{position:absolute;top:76px;left:16%;font-size:36px;line-height:1;z-index:2;filter:drop-shadow(0 3px 2px #0000002c)}
+.devida-gauge-card svg{display:block;width:100%;max-width:255px;height:135px;overflow:visible}
+.devida-gauge-card:after{content:'';position:absolute;bottom:-24px;left:-30px;width:115px;height:70px;border-radius:50%;background:var(--gauge-color);opacity:.07}
+@media(max-width:1050px){.devida-gauge-card{height:194px}.devida-gauge-card svg{height:121px;max-width:235px}.devida-gauge-icon{font-size:31px;top:77px}}
+[data-testid="stTabs"] [data-baseweb="tab"]{font-weight:750!important}
+[data-testid="stVerticalBlockBorderWrapper"]:has(.devida-gauge-anchor){border-radius:18px!important}
+</style>''',unsafe_allow_html=True)
+st.title('🌿 ACTIVIDAD CACAO | DEVIDA')
+st.caption('Oficina Zonal Tingo María · Datos de Hoja 1, dash(7).xlsx · Octubre 2026')
+@st.cache_data
+def load():return pd.read_csv('indicadores_hoja1_agrupados.csv',encoding='utf-8-sig').fillna(0)
+d=load()
 st.sidebar.header('FILTROS')
-# Cascada: cada selección reduce las opciones disponibles en los siguientes filtros.
-d=df.copy()
-for campo,etiqueta,default in [
-    ('ambito','Ámbito','Todos'),
-    ('comunidad','Comunidad','Todas'),
-    ('supervisor','Supervisor','Todos'),
-    ('extensionista','Extensionista','Todos'),
-    ('tecnico','Técnico','Todos'),
-]:
-    opciones=sorted(d[campo].dropna().astype(str).unique().tolist())
-    seleccion=st.sidebar.selectbox(etiqueta,[default]+opciones,key='filtro_'+campo)
-    if seleccion!=default:
-        d=d[d[campo]==seleccion]
-st.sidebar.markdown('**Corte de los datos:** octubre de 2026')
-st.sidebar.caption('Las comunidades con menos de 10 registros por grupo de personal se presentan agrupadas.')
-st.sidebar.warning('Los filtros muestran nombre y primer apellido del personal. Verificar autorización institucional antes de difundir el enlace.')
-st.sidebar.info('El filtro por mes sigue pendiente: la Hoja 1 no contiene una fecha mensual verificable por productor.')
-def total(k):return float(d[k].sum())
-def cards(pairs):
- cols=st.columns(len(pairs))
- for c,(title,k,fmt) in zip(cols,pairs):c.metric(title,format(total(k),fmt))
-def chart(title,keys,labels=None):
- frame=d.groupby('ambito',as_index=False)[keys].sum()[['ambito']+keys].melt('ambito',var_name='Indicador',value_name='Valor')
- if labels:frame['Indicador']=frame['Indicador'].replace(labels)
- fig=px.bar(frame,x='ambito',y='Valor',color='Indicador',barmode='group',title=title)
- fig.update_layout(xaxis_title='Ámbito',yaxis_title='',legend_title='',height=440)
- st.plotly_chart(fig,use_container_width=True)
-def note():st.caption('Cifras exploratorias sumadas por ámbito. Validar unidades, metas y cálculos originales antes de uso oficial.')
-tabs=st.tabs(['RESUMEN','CAPACITACIÓN','ATP','ABONOS ORG.','FOLIARES','POSCOSECHA','% FRUTOS'])
-with tabs[0]:
- st.subheader('Resumen de la actividad')
- cards([('Registros (no familias únicas)','registros',',.0f'),('Familias (suma del campo)','familias_base_suma',',.0f'),('Hectáreas asistidas (TOTAL - Power BI)','hectareas_asistidas',',.2f'),('Visitas técnicas (suma)','visitas_tecnicas',',.0f')])
- chart('Hectáreas asistidas por ámbito (TOTAL)',['hectareas_asistidas'])
- note()
-with tabs[1]:
- st.subheader('Capacitación')
- cards([('Asistencias ECA (suma)','eca_asistencias',',.0f'),('Asistencias CTG (suma)','ctg_asistencias',',.0f')])
- chart('Registros de asistencia por ámbito',['eca_asistencias','ctg_asistencias'],{'eca_asistencias':'ECA','ctg_asistencias':'CTG'})
- st.info('ECA y CTG representan sumas de asistencias; no se presentan como familias únicas.')
-with tabs[2]:
- st.subheader('Asistencia técnica personalizada')
- cards([('Visitas técnicas','visitas_tecnicas',',.0f'),('Extensión agraria (suma)','extension_agraria_suma',',.2f')])
- chart('Visitas técnicas por ámbito',['visitas_tecnicas']);note()
-with tabs[3]:
- st.subheader('Abonos orgánicos')
- cards([('Biofermentos producidos (L)','biofermentos_producidos_l',',.0f'),('Biofertilizantes aplicados (L)','biofertilizantes_aplicados_l',',.0f'),('Compost producido (kg)','compost_producido_kg',',.0f')])
- chart('Biofermentos y biofertilizantes (L)',['biofermentos_producidos_l','biofertilizantes_aplicados_l']);note()
-with tabs[4]:
- st.subheader('Aplicaciones foliares')
- keys=['humato_l','sulfopotasico_l','cobre_quelatado_l','fosfito_potasio_l','foliar_cbz_l','foliar_pk_l','foliar_completo_l']
- st.dataframe(d.groupby('ambito',as_index=False)[keys].sum()[['ambito']+keys],hide_index=True,use_container_width=True)
- chart('Aplicaciones registradas (litros)',['humato_l','sulfopotasico_l','cobre_quelatado_l']);note()
-with tabs[5]:
- st.subheader('Poscosecha')
- cards([('Mantenimiento de módulos (suma)','modulos_poscosecha',',.0f'),('Estimado de producción (suma)','estimado_produccion',',.0f'),('Producción reportada (suma)','produccion_reportada',',.0f')])
- chart('Estimado y producción reportada',['estimado_produccion','produccion_reportada']);note()
-with tabs[6]:
- st.subheader('Monitoreo de frutos')
- cards([('Frutos registrados','frutos_total',',.0f'),('Frutos sanos','frutos_sanos',',.0f'),('Frutos enfermos','frutos_enfermos',',.0f')])
- if total('frutos_total')>0:
-  st.metric('Porcentaje de frutos enfermos (cálculo agregado)',f"{total('frutos_enfermos')/total('frutos_total')*100:.2f}%")
- chart('Conteo de frutos por ámbito',['frutos_sanos','frutos_enfermos']);note()
-st.divider()
-st.caption('Este paquete no incluye nombres ni DNI de productores; sí incluye nombre y primer apellido del personal para los filtros. Requiere autorización institucional antes de su difusión.')
+# Opciones dependientes: cada selección limita las siguientes listas.
+filter_fields=[('ambito','Ámbito','Todos'),('comunidad','Comunidad','Todas'),('supervisor','Supervisor','Todos'),('extensionista','Extensionista','Todos'),('tecnico','Técnico','Todos')]
+if 'especialista_poscosecha' in d.columns:
+ filter_fields.append(('especialista_poscosecha','Especialista poscosecha','Todos'))
+
+if st.sidebar.button('↺ Limpiar filtros',width="stretch"):
+ for field,_,_ in filter_fields:
+  st.session_state.pop('filtro_'+field,None)
+ st.rerun()
+
+for field,label,default in filter_fields:
+ available=sorted({str(v).strip() for v in d[field].dropna() if str(v).strip() not in ('','0','nan','None')})
+ options=[default]+available
+ widget_key='filtro_'+field
+ if st.session_state.get(widget_key,default) not in options:
+  st.session_state[widget_key]=default
+ chosen=st.sidebar.selectbox(label,options,key=widget_key)
+ if chosen!=default:
+  d=d[d[field].astype(str).str.strip()==chosen]
+
+if d.empty:
+ st.warning('No hay registros para la combinación de filtros seleccionada.')
+st.sidebar.caption('Los nombres de los productores no se incluyen en la aplicación.')
+st.sidebar.info('Filtro mensual no disponible: Hoja 1 contiene acumulados, no una serie mensual verificable.')
+def total(k):return float(d.get(k+'_sum',pd.Series(dtype=float)).sum())
+def count(k):return float(d.get(k+'_count',pd.Series(dtype=float)).sum())
+def avg(k):return total(k)/count(k) if count(k) else None
+def minimum(k):
+ x=d.loc[d.get(k+'_count',pd.Series(0,index=d.index))>0,k+'_min']
+ return float(x.min()) if not x.empty else None
+def display(v,dec=0):return 'Sin dato' if v is None else f'{v:,.{dec}f}'
+def cards(items):
+ for col,(label,k,mode,dec) in zip(st.columns(len(items)),items):
+  v=total(k) if mode=='sum' else avg(k) if mode=='avg' else minimum(k) if mode=='min' else float(d[k].sum())
+  col.metric(label,display(v,dec))
+def bar(title,k,axis='comunidad',color=None,n=25):
+ if d.empty:return
+ a=d.groupby(axis,as_index=False)[k+'_sum'].sum().sort_values(k+'_sum',ascending=False).head(n)
+ fig=px.bar(a,x=axis,y=k+'_sum',text_auto='.0f',title=title,color_discrete_sequence=[color] if color else None)
+ fig.update_layout(height=430,xaxis_tickangle=-48,xaxis_title='',yaxis_title='',paper_bgcolor='rgba(0,0,0,0)',plot_bgcolor='rgba(0,0,0,0)',font=dict(size=13),title_font=dict(size=18,color='#0d365d'),margin=dict(t=65,b=85,l=15,r=12));fig.update_traces(marker_line_color='#ffffff',marker_line_width=1.5)
+ st.plotly_chart(fig,width="stretch")
+def icon_for(label):
+ name=label.upper()
+ if 'ESCOBA' in name or 'MONILIASIS' in name or 'PUDRICIÓN' in name:return '🍄'
+ if 'CARMENTA' in name or 'CHINCHE' in name:return '🐞'
+ if 'COMPOST' in name:return '🪴'
+ if 'BIOFERMENT' in name or 'BIOFER.' in name or 'BIOFERTILIZ' in name:return '🛢️'
+ if 'MÓDULO' in name:return '🏡'
+ if 'PODA' in name:return '✂️'
+ if 'MIP' in name:return '🐛'
+ if 'ABON' in name:return '🌿'
+ if 'HUMATO' in name:return '🧪'
+ if 'POTASIO' in name or 'FOLIAR' in name or 'COBRE' in name or 'CALCIO' in name:return '🍃'
+ if 'ASISTENCIA' in name:return '👩‍🌾'
+ if 'PRODUCCIÓN' in name or 'GRANOS' in name or 'REPORTE' in name:return '🍫'
+ if 'FRUTOS' in name:return '🍈'
+ return '🌱'
+def pale_hex(h):
+ h=h.lstrip('#')
+ if len(h)!=6:return '#f3f9ff'
+ r,g,b=[int(h[i:i+2],16) for i in (0,2,4)]
+ return '#%02x%02x%02x'%tuple(round(c*.12+255*.88) for c in (r,g,b))
+def gauge(label,k,color,mode='sum',dec=0):
+ # Arco decorativo: no se interpreta como avance de una meta.
+ v=total(k) if mode=='sum' else (avg(k)*100 if avg(k) is not None else None) if mode=='pct' else avg(k) if mode=='avg' else minimum(k) if mode=='min' else count(k)
+ number=display(v,dec)+(' %' if mode=='pct' and v is not None else '')
+ # El valor queda centrado y completamente visible, incluso con miles.
+ st.markdown(f"""<div class='devida-gauge-card' style='--gauge-color:{color};--gauge-pale:{pale_hex(color)}'>
+   <div class='devida-gauge-title'>{escape(label.upper())}</div>
+   <div class='devida-gauge-icon' aria-hidden='true'>{icon_for(label)}</div>
+   <svg viewBox='0 0 350 160' role='img' aria-label='{escape(label)}: {escape(number)}'>
+     <path d='M 44 133 A 131 131 0 0 1 306 133' fill='none' stroke='#e6ebef' stroke-width='23'/>
+     <path d='M 44 133 A 131 131 0 0 1 175 2' fill='none' stroke='{color}' stroke-width='23'/>
+     <text x='175' y='119' text-anchor='middle' font-family='Arial,sans-serif' font-size='{26 if len(number)>10 else 32}' font-weight='800' fill='#d71932'>{escape(number)}</text>
+   </svg>
+  </div>""",unsafe_allow_html=True)
+def gauge_grid(items,cols=3):
+ for start in range(0,len(items),cols):
+  row=items[start:start+cols]
+  if len(row)==cols:
+   slots=st.columns(cols,gap='small')
+  elif len(row)==2 and cols==3:
+   # Dos indicadores centrados en una fila de tres: simetría visual.
+   slots=st.columns([0.5,1,1,0.5],gap='small')[1:3]
+  elif len(row)==1 and cols==3:
+   slots=st.columns([1,1,1],gap='small')[1:2]
+  else:
+   slots=st.columns(len(row),gap='small')
+  for col,(label,key,color,mode,dec) in zip(slots,row):
+   with col:
+    gauge(label,key,color,mode,dec)
+T=st.tabs(['RESUMEN','CAPACITACIÓN','ATP','ABONOS ORG.','FOLIARES','POSCOSECHA','% FRUTOS'])
+with T[0]:
+ st.subheader('Resumen ejecutivo de la actividad cacao')
+ with st.container(key='resumen_compacto'):
+  c=st.columns(3)
+  for x,(lab,k) in zip(c,[('🏘️ Comunidades atendidas','comunidad'),('👷 Supervisores','supervisor'),('👩‍🌾 Extensionistas','extensionista')]):x.metric(lab,d[k].nunique())
+  c=st.columns(3);c[0].metric('👨‍👩‍👧‍👦 Participantes',f"{int(d['participantes'].sum()):,}");c[1].metric('🌱 Hectáreas asistidas',display(total('hectareas'),2));c[2].metric('🧑‍🔧 Técnicos',d['tecnico'].nunique())
+ c1,c2=st.columns(2)
+ with c1:
+  a=d.groupby('ambito',as_index=False)['participantes'].sum();st.plotly_chart(px.pie(a,names='ambito',values='participantes',hole=.6,title='Participantes por ámbito'),width="stretch")
+ with c2:bar('Hectáreas por ámbito','hectareas','ambito',n=30)
+with T[1]:
+ st.subheader('Capacitación y extensión agraria')
+ cards([('CTG · asistencias','ctg','sum',0),('ECA · asistencias','eca','sum',0),('Parcelas demostrativas','parcela_nonempty','count',0),('Módulos de innovación','modulos_nonempty','count',0),('Días de campo','dias_nonempty','count',0)])
+ # Recuentos de celdas no vacías, no sumas de sus valores.
+ st.caption('CTG y ECA: suma de asistencias. Parcelas, módulos y días de campo: recuento de celdas no vacías.')
+ c1,c2=st.columns([2,1])
+ with c1:bar('ECA por comunidad','eca',color='#f0dc00',n=30)
+ with c2:
+  gauge('Módulos de innovación','modulos_nonempty','#ff006e')
+  gauge('Parcelas demostrativas','parcela_nonempty','#35d71d')
+ bar('CTG por técnico','ctg','tecnico',n=40)
+with T[2]:
+ st.subheader('Asistencia técnica: crecimiento y producción')
+ c1,c2=st.columns([2,1])
+ with c1:bar('Asistencia técnica personalizada por comunidad','atp',color='#e21b23')
+ with c2:
+  st.metric('FAMILIAS ATENDIDAS',display(float(d['participantes'].sum())))
+  st.metric('ATP',display(total('atp')))
+ gauge_grid([
+  ('PODA MANT. (HAS)','poda_mantenimiento','#104f94','sum',2),
+  ('MIP - PRODUCCIÓN (HAS)','mip_prod','#18d4e5','sum',2),
+  ('APLIC. BIOFER. (HAS)','aplic_biofert','#f0001c','sum',2),
+  ('ABONAMIENTO - CRECIMIENTO (HAS)','abonamiento','#a83b43','sum',0),
+  ('PODA FORMACIÓN - CRECIMIENTO (HAS)','poda_formacion','#00d83c','sum',0),
+  ('MIP - CRECIMIENTO (HAS)','mip_crec','#12cde4','sum',0),
+  ('ABON. FRUCTIFICAC. (HAS)','abon_fructificacion','#ff870a','sum',0),
+  ('ABON. BOTÓN FLORAL (HAS)','abon_boton','#05c934','sum',0),
+  ('ABON. FLORACIÓN (HAS)','abon_floracion','#cccccc','sum',0)
+ ],cols=3)
+with T[3]:
+ st.subheader('Producción de abonos orgánicos')
+ gauge_grid([
+  ('Mantenimiento módulos biofermentos','mant_biofermentos','#593c99','sum',0),
+  ('Producción compost (kg)','compost_producido_kg','#75371e','sum',0),
+  ('Producción biofermentos (L)','biofermentos_producidos_l','#f2ef00','sum',0),
+  ('Aplicación biofertilizantes (L)','biofertilizantes_aplicados_l','#fa0022','sum',0)
+ ],cols=2)
+with T[4]:
+ st.subheader('Asistencia técnica: otras actividades')
+ gauge_grid([
+  ('Humato de potasio (L)','humato_l','#111111','sum',0),
+  ('Sulfopotásico (L)','sulfopotasico_l','#ffff00','sum',1),
+  ('Cobre quelatado (L)','cobre_quelatado_l','#101e64','sum',1),
+  ('Fosfito de potasio (L)','fosfito_potasio_l','#ff8512','sum',0),
+  ('Calcio-boro-zinc (L)','foliar_cbz_l','#04d4ef','sum',0),
+  ('Foliar PK (L)','foliar_pk_l','#5720ff','sum',1)
+ ],cols=3)
+ bar('Acodos aéreos por comunidad','acodos',color='#32e729')
+ c1,c2=st.columns(2)
+ with c1:bar('Aplicación de dolomita (kg)','dolomita')
+ with c2:bar('Aplicación de cal agrícola (kg)','cal_agricola')
+with T[5]:
+ st.subheader('Cosecha y poscosecha')
+ gauge_grid([
+  ('Asistencia técnica','asist_poscosecha','#ffff00','sum',0),
+  ('Mantenimiento de módulos','modulos_poscosecha','#ff8a00','sum',0),
+  ('Análisis físico de granos','analisis_granos','#8835a1','sum',0),
+  ('Estimado de producción · promedio','estimado','#00d732','avg',0),
+  ('Reporte de producción · promedio','reporte','#ff0024','avg',0)
+ ],cols=3)
+ st.caption('Estimado y reporte de producción: promedios de registros válidos, redondeados para la visualización.')
+with T[6]:
+ st.subheader('Evaluación de plagas y frutos')
+ # Valores originales: fracciones (0.019 = 1.90 %); se muestran como porcentaje.
+ gauge_grid([
+  ('ESCOBA DE BRUJA %','escoba','#6cb5ff','pct',2),
+  ('CARMENTA %','carmenta','#20e92b','pct',2),
+  ('MONILIASIS %','moniliasis','#69df00','pct',2),
+  ('CHINCHE %','chinche','#9a7ae0','pct',2),
+  ('PUDRICIÓN PARDA %','pudricion','#76232c','pct',2)
+ ],cols=3)
+ san,enf=avg('sanos'),avg('enfermos')
+ if san is not None and enf is not None:
+  # Source percentage columns are stored as percentages (not proportions).
+  a=pd.DataFrame({'Estado':['Sanos','Enfermos'],'Porcentaje':[san,enf]})
+  fig=px.pie(a,names='Estado',values='Porcentaje',hole=.6,title='Porcentaje de frutos sanos y enfermos',color='Estado',color_discrete_map={'Sanos':'#0a548f','Enfermos':'#e21b23'})
+  fig.update_traces(textinfo='percent+label',texttemplate='%{label}: %{percent:.2%}',marker=dict(line=dict(color='white',width=3)),pull=[0,.04]);fig.update_layout(height=500,paper_bgcolor='rgba(0,0,0,0)',font=dict(size=15))
+  st.plotly_chart(fig,width="stretch")
+ else:st.info('No hay porcentajes de frutos válidos para esta selección.')
+ st.caption('Incidencia de plagas: promedio de registros válidos × 100. Frutos sanos y enfermos: porcentajes originales utilizados para el gráfico.')
+st.divider();st.caption('Datos agregados para uso de validación. No publicar el Excel original ni información personal de productores. Verificar autorización institucional antes de difundir.')
