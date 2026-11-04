@@ -29,9 +29,15 @@ st.markdown('''<style>
 [data-testid="stTabs"] [data-baseweb="tab"]{font-weight:750!important}
 [data-testid="stVerticalBlockBorderWrapper"]:has(.devida-gauge-anchor){border-radius:18px!important}
 .community-row{display:flex;justify-content:space-between;align-items:center;gap:12px;margin:8px 0 3px;font:600 13px Arial,sans-serif;color:#174365}.community-track{height:9px;background:#e5edf2;border-radius:8px;overflow:hidden}.community-fill{height:100%;border-radius:8px}.compact-kpi{border:1.5px solid var(--accent);background:linear-gradient(145deg,#fff,var(--pale));border-radius:18px;padding:16px 18px;min-height:126px;box-shadow:0 4px 13px #19395d16;margin:5px 0 14px}.compact-kpi-title{font:800 14px Arial,sans-serif;color:#fff;background:var(--accent);border-radius:12px;padding:9px;text-align:center}.compact-kpi-value{font:800 30px Arial,sans-serif;text-align:center;color:#123d61;padding-top:10px}.compact-kpi-note{font:12px Arial,sans-serif;text-align:center;color:#50677c;padding-top:5px}
+.cap-target-card{position:relative;min-height:120px;border-radius:19px;background:linear-gradient(130deg,#0964a5,#078bc5);padding:16px 20px;box-shadow:0 5px 13px #0b355026;box-sizing:border-box;overflow:hidden;margin-bottom:12px}
+.cap-target-card:before{content:'✦';position:absolute;right:17px;top:15px;font-size:47px;color:#ffffff2b}
+.cap-target-title{font:800 15px Arial,sans-serif;color:white;margin-bottom:12px;position:relative}
+.cap-target-row{display:flex;align-items:center;justify-content:space-between;gap:12px;position:relative}
+.cap-target-value{font:800 34px Arial,sans-serif;color:white}
+.cap-target-pct{font:800 20px Arial,sans-serif;background:#e7f7ed;color:#126b3d;border:1px solid #a7ddbd;border-radius:13px;padding:7px 11px;white-space:nowrap}
 </style>''',unsafe_allow_html=True)
 st.title('🌿 ACTIVIDAD CACAO | DEVIDA')
-st.caption('Oficina Zonal Tingo María · Datos de Hoja 1, dash(7).xlsx · Octubre 2026')
+st.caption('Oficina Zonal Tingo María · OCTUBRE 2026 · JOEL GONZALES R.')
 @st.cache_data
 def load(file_version):
  return pd.read_csv('indicadores_hoja1_agrupados.csv',encoding='utf-8-sig').fillna(0)
@@ -106,6 +112,13 @@ def compact_card(label,value,color,subtitle='',dec=0):
  <div class='compact-kpi-title'>{escape(label.upper())}</div>
  <div class='compact-kpi-value'>{escape(number)}</div>
  <div class='compact-kpi-note'>{escape(subtitle)}</div></div>""",unsafe_allow_html=True)
+
+def target_card(label,value,target):
+ pct=value/target*100 if target>0 else 0
+ st.markdown(f"""<div class='cap-target-card' title='Meta oficial: {target:,.0f}'>
+  <div class='cap-target-title'>{escape(label)}</div>
+  <div class='cap-target-row'><span class='cap-target-value'>{escape(display(value))}</span><span class='cap-target-pct'>{pct:.1f} %</span></div>
+ </div>""",unsafe_allow_html=True)
 
 def community_breakdown(label,column,color):
  st.markdown(f"**{label}**")
@@ -214,7 +227,10 @@ with T[0]:
 with T[1]:
  st.subheader('Capacitación y extensión agraria')
  # CTG y ECA son asistencias acumuladas, no personas únicas.
- cards([('CTG · asistencias','ctg','sum',0),('ECA · asistencias','eca','sum',0),('Parcelas demostrativas','parcela_nonempty','count',0),('Módulos de innovación','modulos_nonempty','count',0)])
+ # Solo se conservan las tarjetas superiores de parcelas y módulos; ECA/CTG ya tienen sus medidores.
+ c_par,c_mod=st.columns(2,gap='small')
+ with c_par:target_card('Parcelas demostrativas',count('parcela_nonempty'),625)
+ with c_mod:target_card('Módulos de innovación',count('modulos_nonempty'),625)
  # Metas oficiales mensuales: ECA 750 (extensionistas), CTG 1,823 (técnicos).
  # Marzo a noviembre = 9 meses programados. Porcentajes respecto a la meta global programada,
  # no metas individuales de los responsables ni recuentos de personas únicas.
