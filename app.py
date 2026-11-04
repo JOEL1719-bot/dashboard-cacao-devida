@@ -26,6 +26,7 @@ st.markdown('''<style>
 @media(max-width:1050px){.devida-gauge-card{height:194px}.devida-gauge-card svg{height:121px;max-width:235px}.devida-gauge-icon{font-size:31px;top:77px}}
 [data-testid="stTabs"] [data-baseweb="tab"]{font-weight:750!important}
 [data-testid="stVerticalBlockBorderWrapper"]:has(.devida-gauge-anchor){border-radius:18px!important}
+.compact-kpi{border:1.5px solid var(--accent);background:linear-gradient(145deg,#fff,var(--pale));border-radius:18px;padding:16px 18px;min-height:126px;box-shadow:0 4px 13px #19395d16;margin:5px 0 14px}.compact-kpi-title{font:800 14px Arial,sans-serif;color:#fff;background:var(--accent);border-radius:12px;padding:9px;text-align:center}.compact-kpi-value{font:800 30px Arial,sans-serif;text-align:center;color:#123d61;padding-top:10px}.compact-kpi-note{font:12px Arial,sans-serif;text-align:center;color:#50677c;padding-top:5px}
 </style>''',unsafe_allow_html=True)
 st.title('🌿 ACTIVIDAD CACAO | DEVIDA')
 st.caption('Oficina Zonal Tingo María · Datos de Hoja 1, dash(7).xlsx · Octubre 2026')
@@ -95,6 +96,20 @@ def pale_hex(h):
  if len(h)!=6:return '#f3f9ff'
  r,g,b=[int(h[i:i+2],16) for i in (0,2,4)]
  return '#%02x%02x%02x'%tuple(round(c*.12+255*.88) for c in (r,g,b))
+def compact_card(label,value,color,subtitle='',dec=0):
+ number=display(value,dec) if isinstance(value,(int,float)) else str(value)
+ st.markdown(f"""<div class='compact-kpi' style='--accent:{color};--pale:{pale_hex(color)}'>
+ <div class='compact-kpi-title'>{escape(label.upper())}</div>
+ <div class='compact-kpi-value'>{escape(number)}</div>
+ <div class='compact-kpi-note'>{escape(subtitle)}</div></div>""",unsafe_allow_html=True)
+
+def unique_field_days():
+ # Un día de campo por extensionista con al menos un registro positivo.
+ # La fuente está agregada por comunidad/técnico, pero conserva extensionista.
+ if d.empty or 'dias_sum' not in d.columns:return 0
+ active=d.loc[pd.to_numeric(d['dias_sum'],errors='coerce').fillna(0)>0,'extensionista']
+ return int(active[active.astype(str).str.strip().ne('')].nunique())
+
 def gauge(label,k,color,mode='sum',dec=0,advance=False):
  # Arco decorativo: no se interpreta como avance de una meta.
  v=total(k) if mode=='sum' else (avg(k)*100 if avg(k) is not None else None) if mode=='pct' else avg(k) if mode=='avg' else minimum(k) if mode=='min' else count(k)
@@ -136,21 +151,22 @@ with T[0]:
   c=st.columns(3)
   for x,(lab,k) in zip(c,[('🏘️ Comunidades atendidas','comunidad'),('👷 Supervisores','supervisor'),('👩‍🌾 Extensionistas','extensionista')]):x.metric(lab,d[k].nunique())
   c=st.columns(3);c[0].metric('👨‍👩‍👧‍👦 Participantes',f"{int(d['participantes'].sum()):,}");c[1].metric('🌱 Hectáreas asistidas',display(total('hectareas'),2));c[2].metric('🧑‍🔧 Técnicos',d['tecnico'].nunique())
- c1,c2=st.columns(2)
- with c1:
-  a=d.groupby('ambito',as_index=False)['participantes'].sum();st.plotly_chart(px.pie(a,names='ambito',values='participantes',hole=.6,title='Participantes por ámbito'),width="stretch")
- with c2:bar('Hectáreas por ámbito','hectareas','ambito',n=30)
+ # Resumen compacto: valores reales del filtro, sin gráficos gigantes.
+ c1,c2=st.columns(2,gap='small')
+ with c1:compact_card('👨‍👩‍👧‍👦 Participantes por ámbito',int(d['participantes'].sum()),'#0877c9','Total de participantes del filtro')
+ with c2:compact_card('🌱 Hectáreas por ámbito',total('hectareas'),'#16a34a','Superficie asistida del filtro (ha)',2)
 with T[1]:
  st.subheader('Capacitación y extensión agraria')
- cards([('CTG · asistencias','ctg','sum',0),('ECA · asistencias','eca','sum',0),('Parcelas demostrativas','parcela_nonempty','count',0),('Módulos de innovación','modulos_nonempty','count',0),('Días de campo','dias_nonempty','count',0)])
- # Recuentos de celdas no vacías, no sumas de sus valores.
- st.caption('CTG y ECA: suma de asistencias. Parcelas, módulos y días de campo: recuento de celdas no vacías.')
- c1,c2=st.columns([2,1])
- with c1:bar('ECA por comunidad','eca',color='#f0dc00',n=30)
- with c2:
-  gauge('Módulos de innovación','modulos_nonempty','#ff006e')
-  gauge('Parcelas demostrativas','parcela_nonempty','#35d71d')
- bar('CTG por técnico','ctg','tecnico',n=40)
+ # CTG y ECA son asistencias acumuladas, no personas únicas.
+ cards([('CTG · asistencias','ctg','sum',0),('ECA · asistencias','eca','sum',0),('Parcelas demostrativas','parcela_nonempty','count',0),('Módulos de innovación','modulos_nonempty','count',0)])
+ c1,c2=st.columns(2,gap='small')
+ with c1:compact_card('📚 ECA · asistencias',total('eca'),'#d7b900','Suma de asistencias registradas')
+ with c2:compact_card('👥 CTG · asistencias',total('ctg'),'#0877c9','Suma de asistencias registradas')
+ c1,c2,c3=st.columns(3,gap='small')
+ with c1:compact_card('🌱 Días de campo',unique_field_days(),'#d97706','Máximo uno por extensionista en el año')
+ with c2:gauge('Módulos de innovación','modulos_nonempty','#ff006e')
+ with c3:gauge('Parcelas demostrativas','parcela_nonempty','#35d71d')
+ st.caption('Días de campo: número de extensionistas con al menos un registro positivo, independientemente de cuántos participantes hayan registrado. ECA y CTG: asistencias acumuladas.')
 with T[2]:
  st.subheader('Asistencia técnica: crecimiento y producción')
  c1,c2=st.columns([2,1])
@@ -188,10 +204,12 @@ with T[4]:
   ('Calcio-boro-zinc (L)','foliar_cbz_l','#04d4ef','sum',0),
   ('Foliar PK (L)','foliar_pk_l','#5720ff','sum',1)
  ],cols=3)
- bar('Acodos aéreos por comunidad','acodos',color='#32e729')
- c1,c2=st.columns(2)
- with c1:bar('Aplicación de dolomita (kg)','dolomita')
- with c2:bar('Aplicación de cal agrícola (kg)','cal_agricola')
+ st.caption('Indicadores adicionales del filtro seleccionado')
+ gauge_grid([
+   ('ACODOS AÉREOS','acodos','#32b86a','sum',0),
+   ('APLICACIÓN DOLOMITA (KG)','dolomita','#8755bc','sum',0),
+   ('APLICACIÓN CAL AGRÍCOLA (KG)','cal_agricola','#ed9218','sum',0)
+ ],cols=3)
 with T[5]:
  st.subheader('Cosecha y poscosecha')
  gauge_grid([
