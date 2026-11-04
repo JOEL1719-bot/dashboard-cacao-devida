@@ -152,10 +152,15 @@ def gauge(label,k,color,mode='sum',dec=0,advance=False,base=None,official_target
  # Arco decorativo: no se interpreta como avance de una meta.
  v=total(k) if mode=='sum' else (avg(k)*100 if avg(k) is not None else None) if mode=='pct' else avg(k) if mode=='avg' else minimum(k) if mode=='min' else count(k)
  number=display(v,dec)+(' %' if mode=='pct' and v is not None else '')
- # Porcentaje de avance respecto a las hectáreas asignadas en el filtro activo.
- denominator=total(base) if advance and base else total('hectareas') if advance else 0
- pct=(v/denominator*100) if advance and denominator>0 and v is not None else None
- badge=(f"<span class='devida-avance' title='Avance sobre {denominator:,.2f} ha asignadas'>{pct:,.1f} %</span>" if pct is not None else "<span class='devida-avance'>Sin base</span>" if advance else "")
+ # ECA/CTG usan la meta oficial acumulada; ATP mantiene su base de hectáreas.
+ if official_target is not None:
+  denominator=float(official_target)
+  pct=(v/denominator*100) if denominator>0 and v is not None else None
+  badge=(f"<span class='devida-avance' title='Aporte a la meta oficial acumulada de {denominator:,.0f} asistencias'>{pct:,.1f} %</span>" if pct is not None else "<span class='devida-avance'>Sin base</span>")
+ else:
+  denominator=total(base) if advance and base else total('hectareas') if advance else 0
+  pct=(v/denominator*100) if advance and denominator>0 and v is not None else None
+  badge=(f"<span class='devida-avance' title='Avance sobre {denominator:,.2f} ha asignadas'>{pct:,.1f} %</span>" if pct is not None else "<span class='devida-avance'>Sin base</span>" if advance else "")
  # El valor queda centrado y completamente visible, incluso con miles.
  st.markdown(f"""<div class='devida-gauge-card' style='--gauge-color:{color};--gauge-pale:{pale_hex(color)}'>
    <div class='devida-gauge-title'>{escape(label.upper())}</div>
