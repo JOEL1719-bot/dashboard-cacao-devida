@@ -23,6 +23,7 @@ st.markdown('''<style>
 .devida-gauge-icon{position:absolute;top:76px;left:16%;font-size:36px;line-height:1;z-index:2;filter:drop-shadow(0 3px 2px #0000002c)}
 .devida-gauge-card svg{display:block;width:100%;max-width:255px;height:135px;overflow:visible}
 .devida-avance{position:absolute;right:12px;bottom:29px;z-index:3;background:#e7f7ed;color:#126b3d;border:1px solid #a7ddbd;border-radius:12px;padding:4px 7px;font:800 13px Arial,sans-serif;white-space:nowrap}
+.devida-avance-cap{font-size:20px;padding:7px 11px;bottom:22px;right:14px;border-radius:14px}
 .devida-gauge-card:after{content:'';position:absolute;bottom:-24px;left:-30px;width:115px;height:70px;border-radius:50%;background:var(--gauge-color);opacity:.07}
 @media(max-width:1050px){.devida-gauge-card{height:194px}.devida-gauge-card svg{height:121px;max-width:235px}.devida-gauge-icon{font-size:31px;top:77px}}
 [data-testid="stTabs"] [data-baseweb="tab"]{font-weight:750!important}
@@ -156,7 +157,7 @@ def gauge(label,k,color,mode='sum',dec=0,advance=False,base=None,official_target
  if official_target is not None:
   denominator=float(official_target)
   pct=(v/denominator*100) if denominator>0 and v is not None else None
-  badge=(f"<span class='devida-avance' title='Aporte a la meta oficial programada de {denominator:,.0f} asistencias'>{pct:,.1f} %</span>" if pct is not None else "<span class='devida-avance'>Sin base</span>")
+  badge=(f"<span class='devida-avance devida-avance-cap' title='Aporte a la meta oficial programada de {denominator:,.0f} asistencias'>{pct:,.1f} %</span>" if pct is not None else "<span class='devida-avance'>Sin base</span>")
  else:
   denominator=total(base) if advance and base else total('hectareas') if advance else 0
   pct=(v/denominator*100) if advance and denominator>0 and v is not None else None
