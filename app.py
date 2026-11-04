@@ -229,8 +229,8 @@ with T[1]:
  # CTG y ECA son asistencias acumuladas, no personas únicas.
  # Solo se conservan las tarjetas superiores de parcelas y módulos; ECA/CTG ya tienen sus medidores.
  c_par,c_mod=st.columns(2,gap='small')
- with c_par:target_card('Parcelas demostrativas',count('parcela_nonempty'),625)
- with c_mod:target_card('Módulos de innovación',count('modulos_nonempty'),625)
+ with c_par:target_card('Parcelas demostrativas',total('parcela_nonempty'),625)
+ with c_mod:target_card('Módulos de innovación',total('modulos_nonempty'),625)
  # Metas oficiales mensuales: ECA 750 (extensionistas), CTG 1,823 (técnicos).
  # Marzo a noviembre = 9 meses programados. Porcentajes respecto a la meta global programada,
  # no metas individuales de los responsables ni recuentos de personas únicas.
