@@ -26,7 +26,7 @@ st.markdown('''<style>
 @media(max-width:1050px){.devida-gauge-card{height:194px}.devida-gauge-card svg{height:121px;max-width:235px}.devida-gauge-icon{font-size:31px;top:77px}}
 [data-testid="stTabs"] [data-baseweb="tab"]{font-weight:750!important}
 [data-testid="stVerticalBlockBorderWrapper"]:has(.devida-gauge-anchor){border-radius:18px!important}
-.compact-kpi{border:1.5px solid var(--accent);background:linear-gradient(145deg,#fff,var(--pale));border-radius:18px;padding:16px 18px;min-height:126px;box-shadow:0 4px 13px #19395d16;margin:5px 0 14px}.compact-kpi-title{font:800 14px Arial,sans-serif;color:#fff;background:var(--accent);border-radius:12px;padding:9px;text-align:center}.compact-kpi-value{font:800 30px Arial,sans-serif;text-align:center;color:#123d61;padding-top:10px}.compact-kpi-note{font:12px Arial,sans-serif;text-align:center;color:#50677c;padding-top:5px}
+.community-row{display:flex;justify-content:space-between;align-items:center;gap:12px;margin:8px 0 3px;font:600 13px Arial,sans-serif;color:#174365}.community-track{height:9px;background:#e5edf2;border-radius:8px;overflow:hidden}.community-fill{height:100%;border-radius:8px}.compact-kpi{border:1.5px solid var(--accent);background:linear-gradient(145deg,#fff,var(--pale));border-radius:18px;padding:16px 18px;min-height:126px;box-shadow:0 4px 13px #19395d16;margin:5px 0 14px}.compact-kpi-title{font:800 14px Arial,sans-serif;color:#fff;background:var(--accent);border-radius:12px;padding:9px;text-align:center}.compact-kpi-value{font:800 30px Arial,sans-serif;text-align:center;color:#123d61;padding-top:10px}.compact-kpi-note{font:12px Arial,sans-serif;text-align:center;color:#50677c;padding-top:5px}
 </style>''',unsafe_allow_html=True)
 st.title('🌿 ACTIVIDAD CACAO | DEVIDA')
 st.caption('Oficina Zonal Tingo María · Datos de Hoja 1, dash(7).xlsx · Octubre 2026')
@@ -103,6 +103,41 @@ def compact_card(label,value,color,subtitle='',dec=0):
  <div class='compact-kpi-value'>{escape(number)}</div>
  <div class='compact-kpi-note'>{escape(subtitle)}</div></div>""",unsafe_allow_html=True)
 
+def community_breakdown(label,column,color):
+ st.markdown(f"**{label}**")
+ if column not in d.columns:
+  st.info('Este indicador no está disponible en la base cargada.')
+  return
+ data=d.groupby('comunidad')[column].sum().sort_values(ascending=False)
+ data=data[data>0]
+ if data.empty:
+  st.caption('Sin registros para los filtros seleccionados.')
+  return
+ st.caption(f'Total: {display(float(data.sum()))} · {len(data)} caseríos con registros')
+ def draw(series):
+  maximum=max(float(data.max()),1.0)
+  for name,value in series.items():
+   width=max(0,min(100,float(value)/maximum*100))
+   st.markdown(f"<div class='community-row'><span>{escape(str(name))}</span><strong>{escape(display(float(value)))}</strong></div><div class='community-track'><div class='community-fill' style='width:{width:.2f}%;background:{color}'></div></div>",unsafe_allow_html=True)
+ draw(data.head(5))
+ if len(data)>5:
+  with st.expander(f'Ver los {len(data)-5} caseríos restantes'):
+   draw(data.iloc[5:])
+
+def atp_top_communities():
+ st.markdown('**Asistencia técnica personalizada por comunidad**')
+ if d.empty:return
+ a=d.groupby('comunidad')['atp_sum'].sum().sort_values(ascending=False)
+ if a.empty:return
+ top=a.head(5)
+ fig=px.bar(x=top.values[::-1],y=top.index[::-1],orientation='h',text=top.values[::-1],color_discrete_sequence=['#e21b23'])
+ fig.update_layout(height=260,margin=dict(t=10,b=20,l=8,r=30),xaxis_title='Asistencias',yaxis_title='',paper_bgcolor='rgba(0,0,0,0)',plot_bgcolor='rgba(0,0,0,0)',font=dict(size=12))
+ fig.update_traces(textposition='outside',cliponaxis=False)
+ st.plotly_chart(fig,width='stretch')
+ if len(a)>5:
+  with st.expander(f'Ver las {len(a)-5} comunidades restantes'):
+   st.dataframe(a.iloc[5:].rename('Asistencias').reset_index().rename(columns={'comunidad':'Comunidad'}),hide_index=True,width='stretch')
+
 def unique_field_days():
  # Un día de campo por extensionista con al menos un registro positivo.
  # La fuente está agregada por comunidad/técnico, pero conserva extensionista.
@@ -110,12 +145,12 @@ def unique_field_days():
  active=d.loc[pd.to_numeric(d['dias_sum'],errors='coerce').fillna(0)>0,'extensionista']
  return int(active[active.astype(str).str.strip().ne('')].nunique())
 
-def gauge(label,k,color,mode='sum',dec=0,advance=False):
+def gauge(label,k,color,mode='sum',dec=0,advance=False,base=None):
  # Arco decorativo: no se interpreta como avance de una meta.
  v=total(k) if mode=='sum' else (avg(k)*100 if avg(k) is not None else None) if mode=='pct' else avg(k) if mode=='avg' else minimum(k) if mode=='min' else count(k)
  number=display(v,dec)+(' %' if mode=='pct' and v is not None else '')
  # Porcentaje de avance respecto a las hectáreas asignadas en el filtro activo.
- denominator=total('hectareas') if advance else 0
+ denominator=total(base) if advance and base else total('hectareas') if advance else 0
  pct=(v/denominator*100) if advance and denominator>0 and v is not None else None
  badge=(f"<span class='devida-avance' title='Avance sobre {denominator:,.2f} ha asignadas'>{pct:,.1f} %</span>" if pct is not None else "<span class='devida-avance'>Sin base</span>" if advance else "")
  # El valor queda centrado y completamente visible, incluso con miles.
@@ -129,7 +164,7 @@ def gauge(label,k,color,mode='sum',dec=0,advance=False):
    </svg>
    {badge}
   </div>""",unsafe_allow_html=True)
-def gauge_grid(items,cols=3,advance=False):
+def gauge_grid(items,cols=3,advance=False,stage_bases=False):
  for start in range(0,len(items),cols):
   row=items[start:start+cols]
   if len(row)==cols:
@@ -143,7 +178,7 @@ def gauge_grid(items,cols=3,advance=False):
    slots=st.columns(len(row),gap='small')
   for col,(label,key,color,mode,dec) in zip(slots,row):
    with col:
-    gauge(label,key,color,mode,dec,advance=advance)
+    gauge(label,key,color,mode,dec,advance=advance,base=('crecimiento_base' if key in ('abonamiento','poda_formacion','mip_crec') else 'produccion_base') if stage_bases else None)
 T=st.tabs(['RESUMEN','CAPACITACIÓN','ATP','ABONOS ORG.','FOLIARES','POSCOSECHA','% FRUTOS'])
 with T[0]:
  st.subheader('Resumen ejecutivo de la actividad cacao')
@@ -155,6 +190,18 @@ with T[0]:
  c1,c2=st.columns(2,gap='small')
  with c1:compact_card('👨‍👩‍👧‍👦 Participantes por ámbito',int(d['participantes'].sum()),'#0877c9','Total de participantes del filtro')
  with c2:compact_card('🌱 Hectáreas por ámbito',total('hectareas'),'#16a34a','Superficie asistida del filtro (ha)',2)
+ st.subheader('Gestión y organización comunitaria')
+ r1,r2,r3=st.columns(3,gap='small')
+ with r1:
+  compact_card('COMITÉ FITOSANITARIO',total('comite_fitosanitario'),'#138c57','Registros del indicador')
+  community_breakdown('Comité fitosanitario por caserío','comite_fitosanitario_sum','#138c57')
+ with r2:
+  compact_card('REUNIONES DE MOTIVACIÓN Y SOCIALIZACIÓN CON AUTORIDADES COMUNALES (ACTAS)',total('reuniones_actas'),'#0877c9','Actas registradas')
+  community_breakdown('Actas por caserío','reuniones_actas_sum','#0877c9')
+ with r3:
+  compact_card('ORGANIZACIÓN DE LAS METODOLOGÍAS PARA EL SERVICIO DE EXTENSIÓN (DOCUMENTO)',total('metodologias_documento'),'#8755bc','Documentos registrados')
+  community_breakdown('Documentos por caserío','metodologias_documento_sum','#8755bc')
+
 with T[1]:
  st.subheader('Capacitación y extensión agraria')
  # CTG y ECA son asistencias acumuladas, no personas únicas.
@@ -170,7 +217,7 @@ with T[1]:
 with T[2]:
  st.subheader('Asistencia técnica: crecimiento y producción')
  c1,c2=st.columns([2,1])
- with c1:bar('Asistencia técnica personalizada por comunidad','atp',color='#e21b23')
+ with c1:atp_top_communities()
  with c2:
   st.metric('FAMILIAS ATENDIDAS',display(float(d['participantes'].sum())))
   st.metric('ATP',display(total('atp')))
@@ -184,8 +231,8 @@ with T[2]:
   ('ABON. FRUCTIFICAC. (HAS)','abon_fructificacion','#ff870a','sum',0),
   ('ABON. BOTÓN FLORAL (HAS)','abon_boton','#05c934','sum',0),
   ('ABON. FLORACIÓN (HAS)','abon_floracion','#cccccc','sum',0)
- ],cols=3,advance=True)
- st.caption('Avance (%) = hectáreas ejecutadas ÷ hectáreas asignadas × 100, según los filtros seleccionados. No equivale necesariamente al cumplimiento de una meta programada. Si hay intervenciones repetidas, el avance puede superar el 100 %.')
+ ],cols=3,advance=True,stage_bases=True)
+ st.caption('Avance (%) = hectáreas ejecutadas ÷ superficie registrada de la etapa correspondiente (crecimiento o producción) × 100. Los valores pueden superar 100 % por intervenciones repetidas; no equivalen necesariamente a cumplimiento de metas.')
 with T[3]:
  st.subheader('Producción de abonos orgánicos')
  gauge_grid([
