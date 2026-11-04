@@ -3,6 +3,7 @@ import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
 from html import escape
+from pathlib import Path
 st.set_page_config(page_title='DEVIDA | Actividad Cacao',page_icon='🌿',layout='wide')
 st.markdown('''<style>
 .block-container{padding-top:.65rem;max-width:1550px;padding-bottom:1.8rem}
@@ -31,8 +32,10 @@ st.markdown('''<style>
 st.title('🌿 ACTIVIDAD CACAO | DEVIDA')
 st.caption('Oficina Zonal Tingo María · Datos de Hoja 1, dash(7).xlsx · Octubre 2026')
 @st.cache_data
-def load():return pd.read_csv('indicadores_hoja1_agrupados.csv',encoding='utf-8-sig').fillna(0)
-d=load()
+def load(file_version):
+ return pd.read_csv('indicadores_hoja1_agrupados.csv',encoding='utf-8-sig').fillna(0)
+# La fecha de modificación invalida la caché cuando se reemplaza el CSV en GitHub.
+d=load(Path('indicadores_hoja1_agrupados.csv').stat().st_mtime_ns)
 st.sidebar.header('FILTROS')
 # Opciones dependientes: cada selección limita las siguientes listas.
 filter_fields=[('ambito','Ámbito','Todos'),('comunidad','Comunidad','Todas'),('supervisor','Supervisor','Todos'),('extensionista','Extensionista','Todos'),('tecnico','Técnico','Todos')]
