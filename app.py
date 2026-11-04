@@ -21,6 +21,7 @@ st.markdown('''<style>
 .devida-gauge-title{font:800 14px/1.2 Arial,sans-serif;text-align:center;color:#ffffff;min-height:32px;width:96%;background:var(--gauge-color);border-radius:18px;padding:8px 5px;display:flex;align-items:center;justify-content:center;box-sizing:border-box;text-shadow:0 1px 1px #00000026}
 .devida-gauge-icon{position:absolute;top:76px;left:16%;font-size:36px;line-height:1;z-index:2;filter:drop-shadow(0 3px 2px #0000002c)}
 .devida-gauge-card svg{display:block;width:100%;max-width:255px;height:135px;overflow:visible}
+.devida-avance{position:absolute;right:12px;bottom:29px;z-index:3;background:#e7f7ed;color:#126b3d;border:1px solid #a7ddbd;border-radius:12px;padding:4px 7px;font:800 13px Arial,sans-serif;white-space:nowrap}
 .devida-gauge-card:after{content:'';position:absolute;bottom:-24px;left:-30px;width:115px;height:70px;border-radius:50%;background:var(--gauge-color);opacity:.07}
 @media(max-width:1050px){.devida-gauge-card{height:194px}.devida-gauge-card svg{height:121px;max-width:235px}.devida-gauge-icon{font-size:31px;top:77px}}
 [data-testid="stTabs"] [data-baseweb="tab"]{font-weight:750!important}
@@ -94,10 +95,14 @@ def pale_hex(h):
  if len(h)!=6:return '#f3f9ff'
  r,g,b=[int(h[i:i+2],16) for i in (0,2,4)]
  return '#%02x%02x%02x'%tuple(round(c*.12+255*.88) for c in (r,g,b))
-def gauge(label,k,color,mode='sum',dec=0):
+def gauge(label,k,color,mode='sum',dec=0,advance=False):
  # Arco decorativo: no se interpreta como avance de una meta.
  v=total(k) if mode=='sum' else (avg(k)*100 if avg(k) is not None else None) if mode=='pct' else avg(k) if mode=='avg' else minimum(k) if mode=='min' else count(k)
  number=display(v,dec)+(' %' if mode=='pct' and v is not None else '')
+ # Porcentaje de avance respecto a las hectáreas asignadas en el filtro activo.
+ denominator=total('hectareas') if advance else 0
+ pct=(v/denominator*100) if advance and denominator>0 and v is not None else None
+ badge=(f"<span class='devida-avance' title='Avance sobre {denominator:,.2f} ha asignadas'>{pct:,.1f} %</span>" if pct is not None else "<span class='devida-avance'>Sin base</span>" if advance else "")
  # El valor queda centrado y completamente visible, incluso con miles.
  st.markdown(f"""<div class='devida-gauge-card' style='--gauge-color:{color};--gauge-pale:{pale_hex(color)}'>
    <div class='devida-gauge-title'>{escape(label.upper())}</div>
@@ -107,8 +112,9 @@ def gauge(label,k,color,mode='sum',dec=0):
      <path d='M 44 133 A 131 131 0 0 1 175 2' fill='none' stroke='{color}' stroke-width='23'/>
      <text x='175' y='119' text-anchor='middle' font-family='Arial,sans-serif' font-size='{26 if len(number)>10 else 32}' font-weight='800' fill='#d71932'>{escape(number)}</text>
    </svg>
+   {badge}
   </div>""",unsafe_allow_html=True)
-def gauge_grid(items,cols=3):
+def gauge_grid(items,cols=3,advance=False):
  for start in range(0,len(items),cols):
   row=items[start:start+cols]
   if len(row)==cols:
@@ -122,7 +128,7 @@ def gauge_grid(items,cols=3):
    slots=st.columns(len(row),gap='small')
   for col,(label,key,color,mode,dec) in zip(slots,row):
    with col:
-    gauge(label,key,color,mode,dec)
+    gauge(label,key,color,mode,dec,advance=advance)
 T=st.tabs(['RESUMEN','CAPACITACIÓN','ATP','ABONOS ORG.','FOLIARES','POSCOSECHA','% FRUTOS'])
 with T[0]:
  st.subheader('Resumen ejecutivo de la actividad cacao')
@@ -162,7 +168,8 @@ with T[2]:
   ('ABON. FRUCTIFICAC. (HAS)','abon_fructificacion','#ff870a','sum',0),
   ('ABON. BOTÓN FLORAL (HAS)','abon_boton','#05c934','sum',0),
   ('ABON. FLORACIÓN (HAS)','abon_floracion','#cccccc','sum',0)
- ],cols=3)
+ ],cols=3,advance=True)
+ st.caption('Avance (%) = hectáreas ejecutadas ÷ hectáreas asignadas × 100, según los filtros seleccionados. No equivale necesariamente al cumplimiento de una meta programada. Si hay intervenciones repetidas, el avance puede superar el 100 %.')
 with T[3]:
  st.subheader('Producción de abonos orgánicos')
  gauge_grid([
