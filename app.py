@@ -152,11 +152,11 @@ def gauge(label,k,color,mode='sum',dec=0,advance=False,base=None,official_target
  # Arco decorativo: no se interpreta como avance de una meta.
  v=total(k) if mode=='sum' else (avg(k)*100 if avg(k) is not None else None) if mode=='pct' else avg(k) if mode=='avg' else minimum(k) if mode=='min' else count(k)
  number=display(v,dec)+(' %' if mode=='pct' and v is not None else '')
- # ECA/CTG usan la meta oficial acumulada; ATP mantiene su base de hectáreas.
+ # ECA/CTG usan la meta oficial programada; ATP mantiene su base de hectáreas.
  if official_target is not None:
   denominator=float(official_target)
   pct=(v/denominator*100) if denominator>0 and v is not None else None
-  badge=(f"<span class='devida-avance' title='Aporte a la meta oficial acumulada de {denominator:,.0f} asistencias'>{pct:,.1f} %</span>" if pct is not None else "<span class='devida-avance'>Sin base</span>")
+  badge=(f"<span class='devida-avance' title='Aporte a la meta oficial programada de {denominator:,.0f} asistencias'>{pct:,.1f} %</span>" if pct is not None else "<span class='devida-avance'>Sin base</span>")
  else:
   denominator=total(base) if advance and base else total('hectareas') if advance else 0
   pct=(v/denominator*100) if advance and denominator>0 and v is not None else None
@@ -215,15 +215,15 @@ with T[1]:
  # CTG y ECA son asistencias acumuladas, no personas únicas.
  cards([('CTG · asistencias','ctg','sum',0),('ECA · asistencias','eca','sum',0),('Parcelas demostrativas','parcela_nonempty','count',0),('Módulos de innovación','modulos_nonempty','count',0)])
  # Metas oficiales mensuales: ECA 750 (extensionistas), CTG 1,823 (técnicos).
- # Marzo a octubre = 8 meses. Porcentajes respecto a la meta global acumulada,
+ # Marzo a noviembre = 9 meses programados. Porcentajes respecto a la meta global programada,
  # no metas individuales de los responsables ni recuentos de personas únicas.
- MESES_EJECUTADOS=8
- META_ECA=750*MESES_EJECUTADOS
- META_CTG=1823*MESES_EJECUTADOS
+ MESES_PROGRAMADOS=9
+ META_ECA=750*MESES_PROGRAMADOS
+ META_CTG=1823*MESES_PROGRAMADOS
  c1,c2=st.columns(2,gap='small')
  with c1:gauge('ECA · ASISTENCIAS','eca','#d7b900',dec=0,official_target=META_ECA)
  with c2:gauge('CTG · ASISTENCIAS','ctg','#0877c9',dec=0,official_target=META_CTG)
- st.caption(f'ECA (extensionistas): meta oficial acumulada {META_ECA:,} asistencias. CTG (técnicos): meta oficial acumulada {META_CTG:,} asistencias. Cada porcentaje indica la contribución del filtro seleccionado a la meta global de marzo a octubre; no es una meta individual.')
+ st.caption(f'ECA (extensionistas): meta oficial programada {META_ECA:,} asistencias. CTG (técnicos): meta oficial programada {META_CTG:,} asistencias. Cada porcentaje indica la contribución del filtro seleccionado a la meta global de marzo a noviembre; no es una meta individual.')
  c1,c2,c3=st.columns(3,gap='small')
  with c1:compact_card('🌱 Días de campo',unique_field_days(),'#d97706','Máximo uno por extensionista en el año')
  with c2:gauge('Módulos de innovación','modulos_nonempty','#ff006e')
