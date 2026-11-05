@@ -64,9 +64,83 @@ for field,label,default in filter_fields:
  if chosen!=default:
   d=d[d[field].astype(str).str.strip()==chosen]
 
+# Búsqueda privada por participante: el Excel se carga solo en esta sesión.
+# Nunca se escribe el Excel ni sus nombres en el repositorio público.
+with st.sidebar.expander('🔎 BUSCAR PARTICIPANTE', expanded=True):
+ st.caption('Cargue su Excel original solo cuando necesite consultar un productor.')
+ excel_privado=st.file_uploader('Excel de participantes (Hoja 1)',type=['xlsx'],key='excel_privado')
+ if excel_privado is not None:
+  try:
+   # Se leen únicamente los campos necesarios para generar la vista individual.
+   def leer_excel_privado(contenido):
+    from io import BytesIO
+    return pd.read_excel(BytesIO(contenido),sheet_name=0)
+   base_personal=leer_excel_privado(excel_privado.getvalue())
+   if 'PARTICIPANTE' not in base_personal.columns:
+    st.error('No se encontró la columna PARTICIPANTE en Hoja 1.')
+   else:
+    texto=st.text_input('Escriba nombre o apellido',placeholder='Ejemplo: JUAN PEREZ',key='busqueda_participante')
+    if texto.strip():
+     import unicodedata
+     def normalizar_nombre(s):
+      return ''.join(c for c in unicodedata.normalize('NFKD',str(s).upper()) if not unicodedata.combining(c)).strip()
+     terminos=normalizar_nombre(texto).split()
+     nombres=base_personal['PARTICIPANTE'].fillna('').astype(str)
+     coincidencias=base_personal.loc[nombres.map(lambda n:all(t in normalizar_nombre(n) for t in terminos))].copy()
+     if coincidencias.empty:
+      st.info('No se encontraron participantes.')
+     else:
+      opciones=['— Seleccione participante —']
+      # Se incluye la comunidad para distinguir homónimos.
+      opciones += [f"{r['PARTICIPANTE']} · {r['COMUNIDAD']} · fila {i+2}" for i,r in coincidencias.iterrows()]
+      elegido=st.selectbox(f'{len(coincidencias)} coincidencia(s)',opciones,key='participante_elegido')
+      if elegido!=opciones[0]:
+       indice=coincidencias.index[opciones.index(elegido)-1]
+       registro=base_personal.loc[indice]
+       # Convertir la fila individual a las mismas columnas que el CSV agrupado.
+       # El resto del dashboard utiliza exactamente sus funciones existentes.
+       columnas={
+        'atp':33,'poda_mantenimiento':41,'mip_prod':39,'aplic_biofert':43,
+        'abonamiento':35,'crecimiento':19,'produccion_ha':20,
+        'poda_formacion':36,'mip_crec':37,'abon_fructificacion':40,
+        'abon_boton':42,'abon_floracion':44,'mant_biofermentos':46,
+        'compost_producido_kg':49,'biofermentos_producidos_l':47,
+        'biofertilizantes_aplicados_l':48,'acodos':67,'humato_l':72,
+        'sulfopotasico_l':73,'cobre_quelatado_l':74,'fosfito_potasio_l':75,
+        'foliar_cbz_l':76,'foliar_pk_l':77,'foliar_completo_l':78,
+        'dolomita':65,'cal_agricola':66,'asist_poscosecha':59,
+        'modulos_poscosecha':60,'analisis_granos':64,'estimado':61,
+        'reporte':62,'escoba':82,'carmenta':84,'moniliasis':81,
+        'chinche':85,'pudricion':83,'sanos':79,'enfermos':80,
+        'ctg':32,'eca':28,'parcela':29,'modulos':30,'dias':31,
+        'hectareas':24,'comite_fitosanitario':26,'reuniones_actas':25,
+        'metodologias_documento':27,
+       }
+       fila={c:0 for c in d.columns}
+       for clave,indice_col in columnas.items():
+        valor=pd.to_numeric(pd.Series([registro.iloc[indice_col]]),errors='coerce').iloc[0]
+        valido=pd.notna(valor)
+        v=float(valor) if valido else 0.0
+        for sufijo,resultado in [('_sum',v),('_count',int(valido)),('_min',v)]:
+         col=clave+sufijo
+         if col in fila:fila[col]=resultado
+        if clave in ('parcela','modulos','dias'):
+         col=clave+'_nonempty'
+         if col in fila:fila[col]=int(valido and v>0)
+         if col+'_sum' in fila:fila[col+'_sum']=int(valido and v>0)
+       for col,idx in [('ambito',2),('comunidad',11),('supervisor',3),
+                       ('extensionista',6),('tecnico',7),('especialista_poscosecha',4)]:
+        if col in fila:fila[col]=str(registro.iloc[idx]) if pd.notna(registro.iloc[idx]) else ''
+       fila['participantes']=1
+       d=pd.DataFrame([fila],columns=d.columns)
+       st.success('Participante seleccionado: '+str(registro['PARTICIPANTE']))
+       st.caption('Vista individual desde el Excel privado. Los demás filtros no cambian la selección individual.')
+  except Exception as exc:
+   st.error(f'No se pudo leer el Excel: {exc}')
+
 if d.empty:
  st.warning('No hay registros para la combinación de filtros seleccionada.')
-st.sidebar.caption('Los nombres de los productores no se incluyen en la aplicación.')
+st.sidebar.caption('Los nombres solo se leen del Excel cargado en esta sesión; no están en el CSV público.')
 st.sidebar.info('Filtro mensual no disponible: Hoja 1 contiene acumulados, no una serie mensual verificable.')
 def total(k):return float(d.get(k+'_sum',pd.Series(dtype=float)).sum())
 def count(k):return float(d.get(k+'_count',pd.Series(dtype=float)).sum())
