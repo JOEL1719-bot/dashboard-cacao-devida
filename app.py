@@ -125,11 +125,15 @@ with st.sidebar.expander('🔎 BUSCAR PARTICIPANTE · ACCESO PRIVADO',expanded=T
   except Exception:
    st.error('No se pudo acceder al Excel privado. Verifica el token, repositorio y archivo en Streamlit Secrets.')
 
-if st.sidebar.button('↺ Limpiar filtros',width="stretch"):
- for field,_,_ in filter_fields:
-  st.session_state.pop('filtro_'+field,None)
- st.session_state.pop('seleccion_desplegable_participante',None)
- st.rerun()
+# El callback se ejecuta antes de reconstruir los widgets del siguiente ciclo.
+# Así se limpia también el participante sin que vuelva a aplicar sus filtros.
+def limpiar_todos_los_filtros():
+ st.session_state['seleccion_desplegable_participante']=None
+ for field,_,default in filter_fields:
+  st.session_state['filtro_'+field]=default
+ st.session_state.pop('fila_participante_seleccionada',None)
+
+st.sidebar.button('↺ Limpiar filtros',width='stretch',on_click=limpiar_todos_los_filtros)
 
 for field,label,default in filter_fields:
  available=sorted({str(v).strip() for v in d[field].dropna() if str(v).strip() not in ('','0','nan','None')})
