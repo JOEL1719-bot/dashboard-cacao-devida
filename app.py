@@ -49,7 +49,8 @@ filter_fields=[('ambito','Ámbito','Todos'),('comunidad','Comunidad','Todas'),('
 if 'especialista_poscosecha' in d.columns:
  filter_fields.append(('especialista_poscosecha','Especialista poscosecha','Todos'))
 
-# El buscador se ejecuta antes de crear los selectores, para poder sincronizarlos.
+# Buscador con sugerencias clicables inmediatamente debajo del texto.
+# Se ejecuta antes de crear los filtros para sincronizarlos con el productor.
 registro=None
 with st.sidebar.expander('🔎 BUSCAR PARTICIPANTE', expanded=True):
  st.caption('Cargue su Excel original solo cuando necesite consultar un productor.')
@@ -58,39 +59,50 @@ with st.sidebar.expander('🔎 BUSCAR PARTICIPANTE', expanded=True):
   try:
    from io import BytesIO
    import unicodedata
-   import hashlib
    base_personal=pd.read_excel(BytesIO(excel_privado.getvalue()),sheet_name=0)
    if 'PARTICIPANTE' not in base_personal.columns:
     st.error('No se encontró la columna PARTICIPANTE en Hoja 1.')
    else:
+    def normalizar_nombre(s):
+     return ''.join(c for c in unicodedata.normalize('NFKD',str(s).upper()) if not unicodedata.combining(c)).strip()
     texto=st.text_input('Escriba nombre o apellido',placeholder='Ejemplo: JUAN PEREZ',key='busqueda_participante')
+    # Si cambia lo escrito o se carga otro archivo, se descarta la selección anterior.
+    firma_busqueda=(excel_privado.name,excel_privado.size,texto.strip())
+    if st.session_state.get('firma_busqueda_participante')!=firma_busqueda:
+     st.session_state['firma_busqueda_participante']=firma_busqueda
+     st.session_state.pop('fila_participante_seleccionada',None)
     if texto.strip():
-     def normalizar_nombre(s):
-      return ''.join(c for c in unicodedata.normalize('NFKD',str(s).upper()) if not unicodedata.combining(c)).strip()
      terminos=normalizar_nombre(texto).split()
      nombres=base_personal['PARTICIPANTE'].fillna('').astype(str)
-     coincidencias=base_personal.loc[nombres.map(lambda n:all(t in normalizar_nombre(n) for t in terminos))].copy()
-     if coincidencias.empty:
+     coincidencias=base_personal.loc[nombres.map(lambda n:all(t in normalizar_nombre(n) for t in terminos))]
+     fila_elegida=st.session_state.get('fila_participante_seleccionada')
+     if fila_elegida is not None and fila_elegida in coincidencias.index:
+      registro=base_personal.loc[fila_elegida]
+      st.success('Participante seleccionado: '+str(registro['PARTICIPANTE']))
+      st.caption('Los filtros se completan automáticamente según el Excel privado.')
+      if st.button('↩ Elegir otro participante',key='cambiar_participante',width='stretch'):
+       st.session_state.pop('fila_participante_seleccionada',None)
+       st.rerun()
+     elif coincidencias.empty:
       st.info('No se encontraron participantes.')
      else:
-      opciones=['— Seleccione participante —']
-      opciones += [f"{r['PARTICIPANTE']} · {r.get('COMUNIDAD','')} · fila {i+2}" for i,r in coincidencias.iterrows()]
-      # Cambiar la búsqueda reinicia la elección anterior.
-      widget_key='participante_elegido_'+hashlib.sha256(texto.strip().encode()).hexdigest()[:12]
-      # Sin callback: evita referencias obsoletas de Streamlit entre ejecuciones.
-      indices=list(coincidencias.index)
-      elegido=st.selectbox(f'{len(coincidencias)} coincidencia(s)',opciones,key=widget_key)
-      if elegido in opciones[1:]:
-       pos=opciones.index(elegido)-1
-       if 0 <= pos < len(indices):
-        registro=base_personal.loc[indices[pos]]
-        for campo,indice_col in [('ambito',2),('comunidad',11),('supervisor',3),('extensionista',6),('tecnico',7),('especialista_poscosecha',4)]:
-         if any(campo==f for f,_,_ in filter_fields):
-          valor=registro.iloc[indice_col]
-          valor_limpio=str(valor).strip() if pd.notna(valor) else ''
-          st.session_state['filtro_'+campo]=valor_limpio if valor_limpio else ('Todas' if campo=='comunidad' else 'Todos')
-        st.success('Participante seleccionado: '+str(registro['PARTICIPANTE']))
-        st.caption('Los filtros se completan automáticamente según el Excel privado.')
+      st.caption(f'{len(coincidencias)} coincidencia(s) · seleccione debajo:')
+      # Las coincidencias se muestran en el mismo buscador, sin otro desplegable.
+      for i,fila in coincidencias.head(12).iterrows():
+       nombre=str(fila['PARTICIPANTE']).strip()
+       caserio=str(fila.get('COMUNIDAD','')).strip()
+       etiqueta=f'👤 {nombre}' + (f' · {caserio}' if caserio and caserio.lower()!='nan' else '')
+       if st.button(etiqueta,key=f'sugerencia_participante_{i}',width='stretch'):
+        st.session_state['fila_participante_seleccionada']=i
+        st.rerun()
+      if len(coincidencias)>12:
+       st.caption('Escriba más letras para reducir las coincidencias.')
+    if registro is not None:
+     for campo,indice_col in [('ambito',2),('comunidad',11),('supervisor',3),('extensionista',6),('tecnico',7),('especialista_poscosecha',4)]:
+      if any(campo==f for f,_,_ in filter_fields):
+       valor=registro.iloc[indice_col]
+       valor_limpio=str(valor).strip() if pd.notna(valor) else ''
+       st.session_state['filtro_'+campo]=valor_limpio if valor_limpio else ('Todas' if campo=='comunidad' else 'Todos')
   except Exception as exc:
    st.error(f'No se pudo leer el Excel: {exc}')
 
@@ -98,6 +110,8 @@ if st.sidebar.button('↺ Limpiar filtros',width="stretch"):
  for field,_,_ in filter_fields:
   st.session_state.pop('filtro_'+field,None)
  st.session_state.pop('busqueda_participante',None)
+ st.session_state.pop('fila_participante_seleccionada',None)
+ st.session_state.pop('firma_busqueda_participante',None)
  st.rerun()
 
 for field,label,default in filter_fields:
