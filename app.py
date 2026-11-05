@@ -77,20 +77,20 @@ with st.sidebar.expander('🔎 BUSCAR PARTICIPANTE', expanded=True):
       opciones += [f"{r['PARTICIPANTE']} · {r.get('COMUNIDAD','')} · fila {i+2}" for i,r in coincidencias.iterrows()]
       # Cambiar la búsqueda reinicia la elección anterior.
       widget_key='participante_elegido_'+hashlib.sha256(texto.strip().encode()).hexdigest()[:12]
+      # Sin callback: evita referencias obsoletas de Streamlit entre ejecuciones.
       indices=list(coincidencias.index)
-      def actualizar_filtros_participante():
-       elegido_actual=st.session_state.get(widget_key,opciones[0])
-       if elegido_actual==opciones[0]:return
-       seleccionado=base_personal.loc[indices[opciones.index(elegido_actual)-1]]
-       for campo,indice_col in [('ambito',2),('comunidad',11),('supervisor',3),('extensionista',6),('tecnico',7),('especialista_poscosecha',4)]:
-        if any(campo==f for f,_,_ in filter_fields):
-         valor=seleccionado.iloc[indice_col]
-         st.session_state['filtro_'+campo]=str(valor).strip() if pd.notna(valor) and str(valor).strip() else ('Todas' if campo=='comunidad' else 'Todos')
-      elegido=st.selectbox(f'{len(coincidencias)} coincidencia(s)',opciones,key=widget_key,on_change=actualizar_filtros_participante)
-      if elegido!=opciones[0]:
-       registro=base_personal.loc[indices[opciones.index(elegido)-1]]
-       st.success('Participante seleccionado: '+str(registro['PARTICIPANTE']))
-       st.caption('Los filtros superiores se completan automáticamente según el Excel privado.')
+      elegido=st.selectbox(f'{len(coincidencias)} coincidencia(s)',opciones,key=widget_key)
+      if elegido in opciones[1:]:
+       pos=opciones.index(elegido)-1
+       if 0 <= pos < len(indices):
+        registro=base_personal.loc[indices[pos]]
+        for campo,indice_col in [('ambito',2),('comunidad',11),('supervisor',3),('extensionista',6),('tecnico',7),('especialista_poscosecha',4)]:
+         if any(campo==f for f,_,_ in filter_fields):
+          valor=registro.iloc[indice_col]
+          valor_limpio=str(valor).strip() if pd.notna(valor) else ''
+          st.session_state['filtro_'+campo]=valor_limpio if valor_limpio else ('Todas' if campo=='comunidad' else 'Todos')
+        st.success('Participante seleccionado: '+str(registro['PARTICIPANTE']))
+        st.caption('Los filtros se completan automáticamente según el Excel privado.')
   except Exception as exc:
    st.error(f'No se pudo leer el Excel: {exc}')
 
