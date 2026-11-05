@@ -88,7 +88,7 @@ with st.sidebar.expander('🔎 BUSCAR PARTICIPANTE · ACCESO PRIVADO',expanded=T
   st.caption('Los indicadores generales permanecen disponibles sin contraseña.')
  else:
   if st.button('🔒 Cerrar acceso privado',key='cerrar_buscador',use_container_width=True):
-   for k in ('buscador_autorizado','fila_participante_seleccionada','firma_busqueda_participante','busqueda_participante'):
+   for k in ('buscador_autorizado','fila_participante_seleccionada','firma_busqueda_participante','busqueda_participante','seleccion_desplegable_participante'):
     st.session_state.pop(k,None)
    st.rerun()
   try:
@@ -104,30 +104,30 @@ with st.sidebar.expander('🔎 BUSCAR PARTICIPANTE · ACCESO PRIVADO',expanded=T
     if st.session_state.get('firma_busqueda_participante')!=firma_busqueda:
      st.session_state['firma_busqueda_participante']=firma_busqueda
      st.session_state.pop('fila_participante_seleccionada',None)
+     st.session_state.pop('seleccion_desplegable_participante',None)
     if texto.strip():
      terminos=normalizar_nombre(texto).split()
      nombres=base_personal['PARTICIPANTE'].fillna('').astype(str)
      coincidencias=base_personal.loc[nombres.map(lambda n:all(t in normalizar_nombre(n) for t in terminos))]
-     fila_elegida=st.session_state.get('fila_participante_seleccionada')
-     if fila_elegida is not None and fila_elegida in coincidencias.index:
-      registro=base_personal.loc[fila_elegida]
-      st.success('Participante seleccionado: '+str(registro['PARTICIPANTE']))
-      if st.button('↩ Elegir otro participante',key='cambiar_participante',use_container_width=True):
-       st.session_state.pop('fila_participante_seleccionada',None)
-       st.rerun()
-     elif coincidencias.empty:
+     if coincidencias.empty:
       st.info('No se encontraron participantes.')
      else:
-      st.caption(f'{len(coincidencias)} coincidencia(s) · seleccione debajo:')
-      for i,fila in coincidencias.head(12).iterrows():
+      st.caption(f'{len(coincidencias)} coincidencia(s). Selecciona un nombre:')
+      opciones=[None]+list(coincidencias.index)
+      def etiqueta_participante(indice):
+       if indice is None:
+        return '▼ Seleccionar participante de la lista'
+       fila=coincidencias.loc[indice]
        nombre=str(fila['PARTICIPANTE']).strip()
        caserio=str(fila.get('COMUNIDAD','')).strip()
-       etiqueta=f'👤 {nombre}' + (f' · {caserio}' if caserio and caserio.lower()!='nan' else '')
-       if st.button(etiqueta,key=f'sugerencia_participante_{i}',use_container_width=True):
-        st.session_state['fila_participante_seleccionada']=i
-        st.rerun()
-      if len(coincidencias)>12:
-       st.caption('Escriba más letras para reducir las coincidencias.')
+       return nombre+(f' · {caserio}' if caserio and caserio.lower()!='nan' else '')
+      # La lista se recalcula al escribir y el resultado se aplica al elegirlo.
+      # El valor se reinicia cuando cambia la búsqueda.
+      fila_elegida=st.selectbox('Coincidencias',opciones,format_func=etiqueta_participante,
+                               key='seleccion_desplegable_participante',label_visibility='collapsed')
+      if fila_elegida is not None:
+       registro=base_personal.loc[fila_elegida]
+       st.success('Participante seleccionado: '+str(registro['PARTICIPANTE']))
     if registro is not None:
      for campo,indice_col in [('ambito',2),('comunidad',11),('supervisor',3),('extensionista',6),('tecnico',7),('especialista_poscosecha',4)]:
       if any(campo==f for f,_,_ in filter_fields):
@@ -142,6 +142,7 @@ if st.sidebar.button('↺ Limpiar filtros',width="stretch"):
   st.session_state.pop('filtro_'+field,None)
  st.session_state.pop('busqueda_participante',None)
  st.session_state.pop('fila_participante_seleccionada',None)
+ st.session_state.pop('seleccion_desplegable_participante',None)
  st.session_state.pop('firma_busqueda_participante',None)
  st.rerun()
 
