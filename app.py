@@ -49,25 +49,58 @@ filter_fields=[('ambito','Ámbito','Todos'),('comunidad','Comunidad','Todas'),('
 if 'especialista_poscosecha' in d.columns:
  filter_fields.append(('especialista_poscosecha','Especialista poscosecha','Todos'))
 
-# Buscador con sugerencias clicables inmediatamente debajo del texto.
-# Se ejecuta antes de crear los filtros para sincronizarlos con el productor.
+# Acceso privado al buscador: contraseña en Streamlit Secrets.
+# El Excel se lee desde un repositorio privado solo tras autenticación.
+import hmac
+import unicodedata
+import urllib.request
+from io import BytesIO
+
+@st.cache_data(ttl=300, show_spinner=False)
+def cargar_base_privada(repo, archivo, token):
+ url=f"https://api.github.com/repos/{repo}/contents/{archivo}"
+ req=urllib.request.Request(url,headers={
+  'Authorization':f'Bearer {token}',
+  'Accept':'application/vnd.github.raw+json',
+  'X-GitHub-Api-Version':'2022-11-28',
+  'User-Agent':'DEVIDA-Dashboard-Streamlit'
+ })
+ with urllib.request.urlopen(req,timeout=25) as respuesta:
+  contenido=respuesta.read()
+ return pd.read_excel(BytesIO(contenido),sheet_name=0)
+
+def normalizar_nombre(s):
+ return ''.join(c for c in unicodedata.normalize('NFKD',str(s).upper()) if not unicodedata.combining(c)).strip()
+
 registro=None
-with st.sidebar.expander('🔎 BUSCAR PARTICIPANTE', expanded=True):
- st.caption('Cargue su Excel original solo cuando necesite consultar un productor.')
- excel_privado=st.file_uploader('Excel de participantes (Hoja 1)',type=['xlsx'],key='excel_privado')
- if excel_privado is not None:
-  try:
-   from io import BytesIO
-   import unicodedata
-   base_personal=pd.read_excel(BytesIO(excel_privado.getvalue()),sheet_name=0)
-   if 'PARTICIPANTE' not in base_personal.columns:
-    st.error('No se encontró la columna PARTICIPANTE en Hoja 1.')
+with st.sidebar.expander('🔎 BUSCAR PARTICIPANTE · ACCESO PRIVADO',expanded=True):
+ if not st.session_state.get('buscador_autorizado',False):
+  with st.form('form_acceso_buscador',clear_on_submit=True):
+   clave=st.text_input('Contraseña del buscador',type='password')
+   entrar=st.form_submit_button('🔓 Acceder al buscador',use_container_width=True)
+  if entrar:
+   configurada=str(st.secrets.get('BUSCADOR_PASSWORD',''))
+   if configurada and hmac.compare_digest(clave,configurada):
+    st.session_state['buscador_autorizado']=True
+    st.rerun()
    else:
-    def normalizar_nombre(s):
-     return ''.join(c for c in unicodedata.normalize('NFKD',str(s).upper()) if not unicodedata.combining(c)).strip()
+    st.error('Contraseña incorrecta o no configurada.')
+  st.caption('Los indicadores generales permanecen disponibles sin contraseña.')
+ else:
+  if st.button('🔒 Cerrar acceso privado',key='cerrar_buscador',use_container_width=True):
+   for k in ('buscador_autorizado','fila_participante_seleccionada','firma_busqueda_participante','busqueda_participante'):
+    st.session_state.pop(k,None)
+   st.rerun()
+  try:
+   repo=str(st.secrets['GITHUB_REPO'])
+   archivo=str(st.secrets['GITHUB_FILE'])
+   token=str(st.secrets['GITHUB_TOKEN'])
+   base_personal=cargar_base_privada(repo,archivo,token)
+   if 'PARTICIPANTE' not in base_personal.columns:
+    st.error('No se encontró la columna PARTICIPANTE en la primera hoja.')
+   else:
     texto=st.text_input('Escriba nombre o apellido',placeholder='Ejemplo: JUAN PEREZ',key='busqueda_participante')
-    # Si cambia lo escrito o se carga otro archivo, se descarta la selección anterior.
-    firma_busqueda=(excel_privado.name,excel_privado.size,texto.strip())
+    firma_busqueda=(repo,archivo,texto.strip())
     if st.session_state.get('firma_busqueda_participante')!=firma_busqueda:
      st.session_state['firma_busqueda_participante']=firma_busqueda
      st.session_state.pop('fila_participante_seleccionada',None)
@@ -79,20 +112,18 @@ with st.sidebar.expander('🔎 BUSCAR PARTICIPANTE', expanded=True):
      if fila_elegida is not None and fila_elegida in coincidencias.index:
       registro=base_personal.loc[fila_elegida]
       st.success('Participante seleccionado: '+str(registro['PARTICIPANTE']))
-      st.caption('Los filtros se completan automáticamente según el Excel privado.')
-      if st.button('↩ Elegir otro participante',key='cambiar_participante',width='stretch'):
+      if st.button('↩ Elegir otro participante',key='cambiar_participante',use_container_width=True):
        st.session_state.pop('fila_participante_seleccionada',None)
        st.rerun()
      elif coincidencias.empty:
       st.info('No se encontraron participantes.')
      else:
       st.caption(f'{len(coincidencias)} coincidencia(s) · seleccione debajo:')
-      # Las coincidencias se muestran en el mismo buscador, sin otro desplegable.
       for i,fila in coincidencias.head(12).iterrows():
        nombre=str(fila['PARTICIPANTE']).strip()
        caserio=str(fila.get('COMUNIDAD','')).strip()
        etiqueta=f'👤 {nombre}' + (f' · {caserio}' if caserio and caserio.lower()!='nan' else '')
-       if st.button(etiqueta,key=f'sugerencia_participante_{i}',width='stretch'):
+       if st.button(etiqueta,key=f'sugerencia_participante_{i}',use_container_width=True):
         st.session_state['fila_participante_seleccionada']=i
         st.rerun()
       if len(coincidencias)>12:
@@ -103,8 +134,8 @@ with st.sidebar.expander('🔎 BUSCAR PARTICIPANTE', expanded=True):
        valor=registro.iloc[indice_col]
        valor_limpio=str(valor).strip() if pd.notna(valor) else ''
        st.session_state['filtro_'+campo]=valor_limpio if valor_limpio else ('Todas' if campo=='comunidad' else 'Todos')
-  except Exception as exc:
-   st.error(f'No se pudo leer el Excel: {exc}')
+  except Exception:
+   st.error('No se pudo acceder al Excel privado. Verifica el token, repositorio y archivo en Streamlit Secrets.')
 
 if st.sidebar.button('↺ Limpiar filtros',width="stretch"):
  for field,_,_ in filter_fields:
@@ -169,7 +200,7 @@ if registro is not None:
 
 if d.empty:
  st.warning('No hay registros para la combinación de filtros seleccionada.')
-st.sidebar.caption('Los nombres solo se leen del Excel cargado en esta sesión; no están en el CSV público.')
+st.sidebar.caption('Los nombres se consultan en el repositorio privado solo después de autenticarse.')
 st.sidebar.info('Filtro mensual no disponible: Hoja 1 contiene acumulados, no una serie mensual verificable.')
 def total(k):return float(d.get(k+'_sum',pd.Series(dtype=float)).sum())
 def count(k):return float(d.get(k+'_count',pd.Series(dtype=float)).sum())
